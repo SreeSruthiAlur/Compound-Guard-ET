@@ -1,0 +1,875 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: CompoundGuard — compound-risk detection API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: zones
+    description: Plant zones
+  - name: sensors
+    description: Sensor readings
+  - name: permits
+    description: Work permits
+  - name: alerts
+    description: Risk alerts
+  - name: risk
+    description: Risk scoring
+  - name: scenario
+    description: Scenario runner
+  - name: corpus
+    description: Regulatory corpus
+  - name: shifts
+    description: Shift events
+  - name: generator
+    description: Synthetic data generator
+  - name: emergency
+    description: Emergency response
+  - name: settings
+    description: App settings
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /zones:
+    get:
+      operationId: getZones
+      tags: [zones]
+      summary: List all plant zones with current risk scores
+      responses:
+        "200":
+          description: List of zones
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ZoneWithRisk"
+
+  /zones/{zoneId}:
+    get:
+      operationId: getZone
+      tags: [zones]
+      summary: Get a single zone with full details
+      parameters:
+        - in: path
+          name: zoneId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Zone details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ZoneDetail"
+        "404":
+          description: Zone not found
+
+  /zones/{zoneId}/sensors:
+    get:
+      operationId: getZoneSensors
+      tags: [sensors]
+      summary: Get sensor readings for a zone
+      parameters:
+        - in: path
+          name: zoneId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 60
+          description: Number of readings to return (most recent)
+        - in: query
+          name: since
+          schema:
+            type: string
+            format: date-time
+          description: Return readings after this timestamp
+      responses:
+        "200":
+          description: Sensor readings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SensorReading"
+
+  /zones/{zoneId}/permits:
+    get:
+      operationId: getZonePermits
+      tags: [permits]
+      summary: Get permits for a zone
+      parameters:
+        - in: path
+          name: zoneId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: active_only
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Permits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Permit"
+
+  /zones/{zoneId}/alerts:
+    get:
+      operationId: getZoneAlerts
+      tags: [alerts]
+      summary: Get alerts for a zone
+      parameters:
+        - in: path
+          name: zoneId
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /zones/{zoneId}/risk:
+    get:
+      operationId: getZoneRisk
+      tags: [risk]
+      summary: Get current risk breakdown for a zone
+      parameters:
+        - in: path
+          name: zoneId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Risk breakdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RiskBreakdown"
+
+  /permits:
+    get:
+      operationId: getPermits
+      tags: [permits]
+      summary: List all permits
+      parameters:
+        - in: query
+          name: active_only
+          schema:
+            type: boolean
+            default: false
+        - in: query
+          name: zone_id
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Permits list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Permit"
+
+  /alerts:
+    get:
+      operationId: getAlerts
+      tags: [alerts]
+      summary: List all alerts
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 50
+        - in: query
+          name: model_source
+          schema:
+            type: string
+            enum: [single_sensor, compound]
+        - in: query
+          name: severity
+          schema:
+            type: string
+            enum: [watch, elevated, critical]
+        - in: query
+          name: include_dismissed
+          schema:
+            type: boolean
+            default: false
+      responses:
+        "200":
+          description: Alerts list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /alerts/{alertId}/dismiss:
+    post:
+      operationId: dismissAlert
+      tags: [alerts]
+      summary: Dismiss an alert and update sensitivity
+      parameters:
+        - in: path
+          name: alertId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Alert dismissed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DismissResult"
+        "404":
+          description: Alert not found
+
+  /risk-scores:
+    get:
+      operationId: getRiskScores
+      tags: [risk]
+      summary: Get current risk scores for all zones
+      responses:
+        "200":
+          description: Risk scores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ZoneRiskScore"
+
+  /scenario/run:
+    post:
+      operationId: runScenario
+      tags: [scenario]
+      summary: Run the Vizag-style compound scenario and get comparison results
+      responses:
+        "200":
+          description: Scenario results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioResult"
+
+  /scenario/status:
+    get:
+      operationId: getScenarioStatus
+      tags: [scenario]
+      summary: Get the current scenario run state
+      responses:
+        "200":
+          description: Scenario status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScenarioStatus"
+
+  /corpus:
+    get:
+      operationId: getCorpus
+      tags: [corpus]
+      summary: List regulatory/incident corpus entries
+      parameters:
+        - in: query
+          name: tags
+          schema:
+            type: string
+          description: Comma-separated tags to filter by
+      responses:
+        "200":
+          description: Corpus entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CorpusItem"
+
+  /corpus/{corpusId}:
+    get:
+      operationId: getCorpusItem
+      tags: [corpus]
+      summary: Get a single corpus entry
+      parameters:
+        - in: path
+          name: corpusId
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Corpus item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CorpusItem"
+        "404":
+          description: Not found
+
+  /shift-events:
+    get:
+      operationId: getShiftEvents
+      tags: [shifts]
+      summary: List shift events
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Shift events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShiftEvent"
+
+  /generator/status:
+    get:
+      operationId: getGeneratorStatus
+      tags: [generator]
+      summary: Get the synthetic data generator status
+      responses:
+        "200":
+          description: Generator status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratorStatus"
+
+  /emergency/{alertId}:
+    get:
+      operationId: getEmergencyResponse
+      tags: [emergency]
+      summary: Get auto-generated emergency draft for a critical alert
+      parameters:
+        - in: path
+          name: alertId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Emergency response draft
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmergencyResponse"
+        "404":
+          description: Alert not found
+
+  /settings/sensitivity:
+    get:
+      operationId: getSensitivity
+      tags: [settings]
+      summary: Get the current model sensitivity setting
+      responses:
+        "200":
+          description: Sensitivity
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SensitivitySettings"
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [risk]
+      summary: Get top-line dashboard statistics
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    Zone:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        hazard_class:
+          type: string
+          enum: [confined_space, hot_work_adjacent, electrical_hazard, gas_release_risk, general]
+        polygon_points:
+          type: string
+          description: SVG polygon points string e.g. "100,50 200,50 200,150 100,150"
+      required: [id, name, hazard_class, polygon_points]
+
+    ZoneWithRisk:
+      allOf:
+        - $ref: "#/components/schemas/Zone"
+        - type: object
+          properties:
+            current_compound_score:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 100
+            current_single_sensor_score:
+              type: number
+              format: float
+              minimum: 0
+              maximum: 100
+            risk_level:
+              type: string
+              enum: [safe, watch, elevated, critical]
+            active_alert_count:
+              type: integer
+            active_permit_count:
+              type: integer
+            last_sensor_at:
+              type: string
+              format: date-time
+          required: [current_compound_score, current_single_sensor_score, risk_level, active_alert_count, active_permit_count]
+
+    ZoneDetail:
+      allOf:
+        - $ref: "#/components/schemas/ZoneWithRisk"
+        - type: object
+          properties:
+            latest_sensors:
+              type: array
+              items:
+                $ref: "#/components/schemas/SensorReading"
+            active_permits:
+              type: array
+              items:
+                $ref: "#/components/schemas/Permit"
+            active_alerts:
+              type: array
+              items:
+                $ref: "#/components/schemas/Alert"
+            risk_breakdown:
+              $ref: "#/components/schemas/RiskBreakdown"
+
+    SensorReading:
+      type: object
+      properties:
+        id:
+          type: integer
+        zone_id:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        gas_lel_pct:
+          type: number
+          format: float
+          description: Gas concentration as % of Lower Explosive Limit
+        co_ppm:
+          type: number
+          format: float
+          description: Carbon monoxide in parts per million
+        temperature_c:
+          type: number
+          format: float
+        vibration:
+          type: number
+          format: float
+      required: [id, zone_id, timestamp, gas_lel_pct, co_ppm, temperature_c, vibration]
+
+    Permit:
+      type: object
+      properties:
+        id:
+          type: integer
+        zone_id:
+          type: integer
+        zone_name:
+          type: string
+        type:
+          type: string
+          enum: [hot_work, confined_space, electrical]
+        status:
+          type: string
+          enum: [active, expired, cancelled]
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+        issued_by:
+          type: string
+        has_conflict:
+          type: boolean
+          description: True if this permit conflicts with rising gas levels in the same zone
+      required: [id, zone_id, type, status, start_time, end_time, issued_by, has_conflict]
+
+    ShiftEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        shift_name:
+          type: string
+          enum: [day, evening, night]
+        event_type:
+          type: string
+          enum: [changeover, handover_note, incident_reported]
+      required: [id, timestamp, shift_name, event_type]
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: integer
+        zone_id:
+          type: integer
+        zone_name:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        model_source:
+          type: string
+          enum: [single_sensor, compound]
+        severity:
+          type: string
+          enum: [watch, elevated, critical]
+        score:
+          type: number
+          format: float
+        explanation_text:
+          type: string
+        citation_id:
+          type: string
+          nullable: true
+        citation:
+          $ref: "#/components/schemas/CorpusItem"
+          nullable: true
+        dismissed:
+          type: boolean
+      required: [id, zone_id, zone_name, timestamp, model_source, severity, score, explanation_text, dismissed]
+
+    DismissResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        new_sensitivity:
+          type: number
+          format: float
+      required: [success, new_sensitivity]
+
+    ZoneRiskScore:
+      type: object
+      properties:
+        zone_id:
+          type: integer
+        zone_name:
+          type: string
+        single_sensor_score:
+          type: number
+          format: float
+        compound_score:
+          type: number
+          format: float
+        risk_level:
+          type: string
+          enum: [safe, watch, elevated, critical]
+        active_permit_count:
+          type: integer
+        last_updated:
+          type: string
+          format: date-time
+      required: [zone_id, zone_name, single_sensor_score, compound_score, risk_level, active_permit_count, last_updated]
+
+    RiskBreakdown:
+      type: object
+      properties:
+        zone_id:
+          type: integer
+        single_sensor_score:
+          type: number
+          format: float
+        compound_score:
+          type: number
+          format: float
+        risk_level:
+          type: string
+          enum: [safe, watch, elevated, critical]
+        sensor_contribution:
+          type: number
+          format: float
+          description: Fraction of compound score from sensor readings
+        permit_conflict_contribution:
+          type: number
+          format: float
+          description: Fraction of compound score from permit conflicts
+        shift_context_contribution:
+          type: number
+          format: float
+          description: Fraction of compound score from shift context
+        trigger_conditions:
+          type: array
+          items:
+            type: string
+          description: Human-readable list of conditions that triggered the score
+        active_citation_id:
+          type: string
+          nullable: true
+      required: [zone_id, single_sensor_score, compound_score, risk_level, sensor_contribution, permit_conflict_contribution, shift_context_contribution, trigger_conditions]
+
+    CorpusItem:
+      type: object
+      properties:
+        id:
+          type: string
+        source_type:
+          type: string
+          enum: [OISD, Factory Act, Incident Summary]
+        title:
+          type: string
+        excerpt_text:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+      required: [id, source_type, title, excerpt_text, tags]
+
+    ScenarioTestCase:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        single_sensor_flagged:
+          type: boolean
+        compound_flagged:
+          type: boolean
+        single_sensor_flag_time:
+          type: string
+          nullable: true
+        compound_flag_time:
+          type: string
+          nullable: true
+        lead_time_minutes:
+          type: number
+          format: float
+          nullable: true
+      required: [name, description, single_sensor_flagged, compound_flagged]
+
+    ScenarioResult:
+      type: object
+      properties:
+        scenario_name:
+          type: string
+        ran_at:
+          type: string
+          format: date-time
+        primary_single_sensor_flag_time:
+          type: string
+          nullable: true
+        primary_compound_flag_time:
+          type: string
+          nullable: true
+        lead_time_delta_minutes:
+          type: number
+          format: float
+          nullable: true
+          description: How many minutes earlier the compound engine flagged vs. single-sensor
+        single_sensor_false_negatives:
+          type: integer
+        compound_false_negatives:
+          type: integer
+        total_test_cases:
+          type: integer
+        single_sensor_accuracy_pct:
+          type: number
+          format: float
+        compound_accuracy_pct:
+          type: number
+          format: float
+        test_cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/ScenarioTestCase"
+        timeline_events:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineEvent"
+      required: [scenario_name, ran_at, single_sensor_false_negatives, compound_false_negatives, total_test_cases, single_sensor_accuracy_pct, compound_accuracy_pct, test_cases, timeline_events]
+
+    TimelineEvent:
+      type: object
+      properties:
+        t_minutes:
+          type: number
+          format: float
+        event_type:
+          type: string
+          enum: [sensor_reading, permit_issued, shift_change, single_sensor_flag, compound_flag, alert_raised]
+        description:
+          type: string
+        gas_lel_pct:
+          type: number
+          format: float
+          nullable: true
+        single_sensor_score:
+          type: number
+          format: float
+          nullable: true
+        compound_score:
+          type: number
+          format: float
+          nullable: true
+      required: [t_minutes, event_type, description]
+
+    ScenarioStatus:
+      type: object
+      properties:
+        has_results:
+          type: boolean
+        last_ran_at:
+          type: string
+          format: date-time
+          nullable: true
+      required: [has_results]
+
+    GeneratorStatus:
+      type: object
+      properties:
+        running:
+          type: boolean
+        interval_seconds:
+          type: integer
+        total_readings_generated:
+          type: integer
+        scenario_injection_active:
+          type: boolean
+        uptime_seconds:
+          type: number
+      required: [running, interval_seconds, total_readings_generated, scenario_injection_active, uptime_seconds]
+
+    EmergencyResponse:
+      type: object
+      properties:
+        alert_id:
+          type: integer
+        zone_name:
+          type: string
+        severity:
+          type: string
+        evacuation_notice:
+          type: string
+        incident_report:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        is_draft:
+          type: boolean
+      required: [alert_id, zone_name, severity, evacuation_notice, incident_report, generated_at, is_draft]
+
+    SensitivitySettings:
+      type: object
+      properties:
+        sensitivity:
+          type: number
+          format: float
+          description: Current sensitivity multiplier (0.5 = less sensitive, 2.0 = more sensitive)
+          minimum: 0.5
+          maximum: 2.0
+        dismissed_count:
+          type: integer
+          description: Number of alerts dismissed (affects sensitivity)
+        watch_threshold:
+          type: number
+          format: float
+        elevated_threshold:
+          type: number
+          format: float
+        critical_threshold:
+          type: number
+          format: float
+      required: [sensitivity, dismissed_count, watch_threshold, elevated_threshold, critical_threshold]
+
+    DashboardStats:
+      type: object
+      properties:
+        active_permits:
+          type: integer
+        zones_at_risk:
+          type: integer
+        active_alerts:
+          type: integer
+        critical_alerts:
+          type: integer
+        sensitivity:
+          type: number
+          format: float
+        generator_running:
+          type: boolean
+        last_updated:
+          type: string
+          format: date-time
+      required: [active_permits, zones_at_risk, active_alerts, critical_alerts, sensitivity, generator_running, last_updated]

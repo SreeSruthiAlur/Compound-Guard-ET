@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "CompoundGuard"
+version = "1.0.0"
+id = "artifacts/compound-guard"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23551
+
+[services.development]
+run = "pnpm --filter @workspace/compound-guard run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/compound-guard", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/compound-guard/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23551"
+BASE_PATH = "/"
